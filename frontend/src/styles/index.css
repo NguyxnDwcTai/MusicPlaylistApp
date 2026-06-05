@@ -1,0 +1,88 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,350;0,400;0,500;1,350;1,400&family=Outfit:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tokens.css";
+@import "tailwindcss";
+
+@theme {
+  --color-paper: var(--color-paper);
+  --color-paper-2: var(--color-paper-2);
+  --color-paper-3: var(--color-paper-3);
+  --color-rule: var(--color-rule);
+  --color-neutral: var(--color-neutral);
+  --color-muted: var(--color-muted);
+  --color-ink: var(--color-ink);
+  
+  --color-accent: var(--color-accent);
+  --color-accent-hover: var(--color-accent-hover);
+  --color-accent-active: var(--color-accent-active);
+  --color-accent-glow: var(--color-accent-glow);
+
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+  --font-mono: var(--font-mono);
+
+  --animate-pulse-slow: pulse-slow 8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 0.5; }
+}
+
+/* Global resets and responsive base */
+html, body {
+  overflow-x: clip;
+  background-color: transparent;
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  scroll-behavior: smooth;
+  margin: 0;
+  padding: 0;
+}
+
+/* Compensate optical weight of light text on dark: body weight 400 -> 350 */
+body {
+  font-weight: 350;
+}
+
+/* Clean Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-paper);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-rule);
+  border-radius: var(--radius-sm);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neutral);
+}
+
+
+/* Micro-interaction state shadows */
+.glow-card {
+  transition: transform var(--dur-normal) var(--ease-out), 
+              background-color var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-normal) var(--ease-out);
+}
+
+.glow-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px -10px var(--color-accent-glow);
+  background-color: var(--color-paper-3);
+}
+
+/* Interactive elements base states */
+button, a {
+  outline: none;
+}
+
+button:focus-visible, a:focus-visible, input:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 4px;
+}
+
+input:focus-visible {
+  outline-offset: 0;
+}

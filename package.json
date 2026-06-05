@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@firecms/neat": "^0.9.0"
+  }
+}
