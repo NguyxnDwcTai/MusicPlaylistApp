@@ -10,7 +10,10 @@ interface PlaylistInfo {
   name: string;
   description: string;
   images: { url: string }[];
-  tracks: {
+  tracks?: {
+    total: number;
+  };
+  items?: {
     total: number;
   };
 }
@@ -42,9 +45,9 @@ export default function PlaylistDetail() {
         // Format the Spotify tracks list to the TrackObject interface
         const rawTracks = tracksRes.data.items || [];
         const formattedTracks = rawTracks
-          .filter((item: any) => item.track !== null) // filter out removed/empty tracks
-          .map((item: any) => {
-            const t = item.track;
+          .filter((entry: any) => entry.track || entry.item) // support both old (.track) and new 2026 API (.item)
+          .map((entry: any) => {
+            const t = entry.track || entry.item;
             return {
               id: t.id,
               name: t.name,
@@ -62,7 +65,11 @@ export default function PlaylistDetail() {
         setTracks(formattedTracks);
       } catch (err: any) {
         console.error('Failed to fetch playlist details:', err);
-        setError('Could not load playlist. Please verify your Spotify connection.');
+        if (err.response && err.response.status === 403) {
+          setError('Spotify API Restriction: You can only view tracks of playlists that you own or collaborate on. Spotify blocks accessing tracks from other users\' playlists.');
+        } else {
+          setError('Could not load playlist. Please verify your Spotify connection.');
+        }
       } finally {
         setLoading(false);
       }
@@ -172,7 +179,7 @@ export default function PlaylistDetail() {
           <div className="flex items-center gap-2 text-[11px] text-neutral font-mono mt-1">
             <span>Nocturne Curator</span>
             <span>•</span>
-            <span>{playlist.tracks.total} tracks</span>
+            <span>{playlist.tracks?.total ?? playlist.items?.total ?? 0} tracks</span>
           </div>
         </div>
       </div>

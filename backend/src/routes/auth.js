@@ -22,7 +22,16 @@ router.get('/login', (req, res) => {
   
   const scopes = [
     'user-read-email',
-    'user-read-private'
+    'user-read-private',
+    'streaming',
+    'user-read-playback-state',
+    'user-modify-playback-state',
+    'user-read-currently-playing',
+    'playlist-read-private',
+    'playlist-read-collaborative',
+    'user-library-read',
+    'user-library-modify',
+    'user-read-recently-played'
   ];
 
   // We construct the query parameters manually to ensure spaces are encoded as %20 instead of +

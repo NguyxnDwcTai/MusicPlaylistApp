@@ -1,4 +1,5 @@
 {
+  "name": "nocturne-music-playlist-app",
   "dependencies": {
     "@firecms/neat": "^0.9.0"
   }

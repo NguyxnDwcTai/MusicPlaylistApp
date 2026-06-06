@@ -32,7 +32,8 @@ export default function BottomPlayer() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragProgress, setDragProgress] = useState(0);
 
-  const durationMs = currentTrack?.duration_ms || 30000; // Default to 30s preview duration if not set
+  // Spotify preview_url is always max 30s (30000ms) for free accounts
+  const durationMs = !isPremium ? 30000 : (currentTrack?.duration_ms || 30000);
   const progressMs = playbackState.progressMs;
   const displayedProgress = isDragging ? dragProgress : progressMs;
 

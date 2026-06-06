@@ -92,7 +92,7 @@ router.get('/playlists', async (req, res) => {
 // GET /api/spotify/playlists/:id/tracks (Proxy playlist tracks)
 router.get('/playlists/:id/tracks', async (req, res) => {
   try {
-    const response = await axios.get(`https://api.spotify.com/v1/playlists/${req.params.id}/tracks`, {
+    const response = await axios.get(`https://api.spotify.com/v1/playlists/${req.params.id}/items`, {
       params: req.query,
       headers: {
         Authorization: `Bearer ${req.accessToken}`,

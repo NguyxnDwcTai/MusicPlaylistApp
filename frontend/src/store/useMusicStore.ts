@@ -44,7 +44,7 @@ interface MusicStore {
   setVolume: (level: number) => void;
   updateProgress: (ms: number) => void;
   setDeviceId: (id: string | null) => void;
-  setPlaybackState: (state: Partial<PlaybackState>) => void;
+  setPlaybackState: (state: Partial<PlaybackState> | ((prev: PlaybackState) => Partial<PlaybackState>)) => void;
   setIsPremium: (isPremium: boolean) => void;
   setUserProfile: (profile: any) => void;
   setLikedTrackIds: (ids: string[]) => void;
@@ -59,7 +59,7 @@ export const useMusicStore = create<MusicStore>((set) => ({
   currentTrack: null,
   isPlaying: false,
   deviceId: null,
-  isPremium: true,
+  isPremium: false,
   userProfile: null,
   likedTrackIds: [],
   playbackState: {
@@ -88,9 +88,10 @@ export const useMusicStore = create<MusicStore>((set) => ({
   
   setDeviceId: (id) => set({ deviceId: id }),
   
-  setPlaybackState: (state) => set((prev) => ({
-    playbackState: { ...prev.playbackState, ...state }
-  })),
+  setPlaybackState: (state) => set((prev) => {
+    const patch = typeof state === 'function' ? state(prev.playbackState) : state;
+    return { playbackState: { ...prev.playbackState, ...patch } };
+  }),
   
   setIsPremium: (isPremium) => set({ isPremium }),
 
@@ -107,7 +108,7 @@ export const useMusicStore = create<MusicStore>((set) => ({
     currentTrack: null,
     isPlaying: false,
     deviceId: null,
-    isPremium: true,
+    isPremium: false,
     userProfile: null,
     likedTrackIds: [],
     playbackState: {

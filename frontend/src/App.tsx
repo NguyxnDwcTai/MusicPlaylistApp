@@ -8,6 +8,7 @@ import Library from './pages/Library.tsx';
 import PlaylistDetail from './pages/PlaylistDetail.tsx';
 import { useMusicStore } from './store/useMusicStore';
 import axiosInstance from './lib/axios';
+import { SpotifyPlayerProvider } from './hooks/useSpotifyPlayer';
 
 function AppRoutes() {
   const { setAccessToken, setUserProfile, clearStore } = useMusicStore();
@@ -69,7 +70,9 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AppRoutes />
+      <SpotifyPlayerProvider>
+        <AppRoutes />
+      </SpotifyPlayerProvider>
     </BrowserRouter>
   );
 }

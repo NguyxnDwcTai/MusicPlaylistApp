@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, createContext, useContext, ReactNode } from 'react';
 import { useMusicStore, TrackObject } from '../store/useMusicStore';
 import axiosInstance from '../lib/axios';
 
@@ -13,7 +13,18 @@ declare global {
 // Singleton HTMLAudioElement for free accounts
 const audioFallback = new Audio();
 
-export function useSpotifyPlayer() {
+interface SpotifyPlayerContextType {
+  playTrack: (track: TrackObject) => Promise<void>;
+  togglePlayPause: () => Promise<void>;
+  nextTrack: () => Promise<void>;
+  prevTrack: () => Promise<void>;
+  seek: (positionMs: number) => Promise<void>;
+  adjustVolume: (volume: number) => Promise<void>;
+}
+
+const SpotifyPlayerContext = createContext<SpotifyPlayerContextType | null>(null);
+
+function useSpotifyPlayerInternal() {
   const {
     accessToken,
     deviceId,
@@ -164,29 +175,32 @@ export function useSpotifyPlayer() {
 
   // Track progress updating for either SDK or preview audio
   useEffect(() => {
-    if (isPlaying) {
-      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
-
-      progressIntervalRef.current = setInterval(() => {
-        if (!isPremium) {
-          // Sync with HTML5 audio
-          const progressMs = Math.floor(audioFallback.currentTime * 1000);
-          setPlaybackState({ progressMs });
-        } else if (playerRef.current) {
-          // Increment progress locally (Spotify SDK only updates state occasionally)
-          setPlaybackState({ progressMs: playbackState.progressMs + 500 });
-        }
-      }, 500);
-    } else {
+    if (!isPlaying) {
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
       }
+      return;
     }
 
+    progressIntervalRef.current = setInterval(() => {
+      if (!isPremium) {
+        // Sync with HTML5 audio element directly (no stale closure issue)
+        const progressMs = Math.floor(audioFallback.currentTime * 1000);
+        setPlaybackState({ progressMs });
+      } else {
+        // Use functional updater to avoid stale closure
+        setPlaybackState((prev) => ({ progressMs: prev.progressMs + 500 }));
+      }
+    }, 500);
+
     return () => {
-      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
     };
-  }, [isPlaying, isPremium, playbackState.progressMs]);
+  }, [isPlaying, isPremium]); // removed playbackState.progressMs to prevent re-render loop
 
   // Audio Fallback end event listener
   useEffect(() => {
@@ -205,7 +219,7 @@ export function useSpotifyPlayer() {
       // Free Account Fallback
       if (track.preview_url) {
         if (currentTrack?.id === track.id) {
-          togglePlayPause();
+          await togglePlayPause();
           return;
         }
 
@@ -242,21 +256,26 @@ export function useSpotifyPlayer() {
 
   const togglePlayPause = async () => {
     if (!isPremium) {
-      // Free Account Fallback
-      if (!audioFallback.src) return;
+      // Free Account Fallback — check src properly (empty string is falsy in JS)
+      if (!audioFallback.src || audioFallback.src === window.location.href) return;
       if (isPlaying) {
         audioFallback.pause();
         setIsPlaying(false);
       } else {
         audioFallback.play().then(() => {
           setIsPlaying(true);
+        }).catch(err => {
+          console.error('Audio preview play failed:', err);
         });
       }
       return;
     }
 
-    // Premium Account
-    if (!playerRef.current) return;
+    // Premium Account — ensure SDK player is ready
+    if (!playerRef.current) {
+      console.warn('Spotify player is not initialized yet.');
+      return;
+    }
     try {
       await playerRef.current.togglePlay();
     } catch (err) {
@@ -357,4 +376,17 @@ export function useSpotifyPlayer() {
     seek,
     adjustVolume,
   };
+}
+
+export function SpotifyPlayerProvider({ children }: { children: ReactNode }) {
+  const value = useSpotifyPlayerInternal();
+  return React.createElement(SpotifyPlayerContext.Provider, { value }, children);
+}
+
+export function useSpotifyPlayer() {
+  const context = useContext(SpotifyPlayerContext);
+  if (!context) {
+    throw new Error('useSpotifyPlayer must be used within a SpotifyPlayerProvider');
+  }
+  return context;
 }
