@@ -160,9 +160,9 @@ export default function Dashboard() {
         <section className="space-y-4">
           <h2 className="font-display font-semibold text-lg text-ink">Recently Cured Tracks</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {recentTracks.map((track) => (
+            {recentTracks.map((track, idx) => (
               <div
-                key={track.id}
+                key={`${track.id}-${idx}`}
                 onClick={() => playTrack(track)}
                 className="bg-paper-2/40 hover:bg-paper-3/70 border border-rule/50 rounded-lg p-3 flex items-center gap-4 cursor-pointer transition-all duration-300 group hover:shadow-md hover:border-accent/20"
               >

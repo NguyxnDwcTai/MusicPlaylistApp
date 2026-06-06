@@ -34,17 +34,29 @@ export default function PlaylistDetail() {
       setLoading(true);
       setError(null);
       try {
-        // Fetch playlist metadata and tracks concurrently
-        const [playlistRes, tracksRes] = await Promise.all([
+        // Fetch playlist metadata and the first page of tracks concurrently
+        const [playlistRes, initialTracksRes] = await Promise.all([
           axiosInstance.get(`/api/spotify/playlists/${id}`),
-          axiosInstance.get(`/api/spotify/playlists/${id}/tracks`),
+          axiosInstance.get(`/api/spotify/playlists/${id}/tracks?limit=100`),
         ]);
 
         setPlaylist(playlistRes.data);
 
+        let allRawTracks = initialTracksRes.data.items || [];
+        let nextUrl = initialTracksRes.data.next;
+
+        // Fetch remaining pages if any
+        while (nextUrl) {
+          const nextProxyUrl = nextUrl.replace('https://api.spotify.com/v1', '/api/spotify');
+          const nextRes = await axiosInstance.get(nextProxyUrl);
+          if (nextRes.data.items) {
+            allRawTracks = [...allRawTracks, ...nextRes.data.items];
+          }
+          nextUrl = nextRes.data.next;
+        }
+
         // Format the Spotify tracks list to the TrackObject interface
-        const rawTracks = tracksRes.data.items || [];
-        const formattedTracks = rawTracks
+        const formattedTracks = allRawTracks
           .filter((entry: any) => entry.track || entry.item) // support both old (.track) and new 2026 API (.item)
           .map((entry: any) => {
             const t = entry.track || entry.item;

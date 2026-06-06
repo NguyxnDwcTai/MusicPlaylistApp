@@ -27,10 +27,8 @@ const SpotifyPlayerContext = createContext<SpotifyPlayerContextType | null>(null
 function useSpotifyPlayerInternal() {
   const {
     accessToken,
-    deviceId,
     isPlaying,
     isPremium,
-    currentTrack,
     playbackState,
     setDeviceId,
     setCurrentTrack,
@@ -38,9 +36,6 @@ function useSpotifyPlayerInternal() {
     setPlaybackState,
     setIsPremium,
     setVolume,
-    queue,
-    queueIndex,
-    setQueueIndex,
   } = useMusicStore();
 
   const playerRef = useRef<any>(null);
@@ -157,6 +152,19 @@ function useSpotifyPlayerInternal() {
           duration_ms: state.duration,
           uri: track.uri,
         };
+
+        // Sync queueIndex if the track uri matches any song in the queue
+        const musicState = useMusicStore.getState();
+        if (musicState.queue.length > 0) {
+          const currentQueueTrack = musicState.queue[musicState.queueIndex];
+          if (!currentQueueTrack || currentQueueTrack.uri !== track.uri) {
+            const foundIdx = musicState.queue.findIndex(t => t.uri === track.uri);
+            if (foundIdx !== -1) {
+              musicState.setQueueIndex(foundIdx);
+            }
+          }
+        }
+
         setCurrentTrack(formattedTrack);
       }
 
@@ -208,6 +216,8 @@ function useSpotifyPlayerInternal() {
   // Audio Fallback end event listener
   useEffect(() => {
     const handleEnded = async () => {
+      const { queue, queueIndex, setQueueIndex, setCurrentTrack, setIsPlaying, setPlaybackState } = useMusicStore.getState();
+      
       if (queue.length > 0 && queueIndex < queue.length - 1) {
         const nextIdx = queueIndex + 1;
         setQueueIndex(nextIdx);
@@ -220,8 +230,10 @@ function useSpotifyPlayerInternal() {
             setPlaybackState({ progressMs: 0 });
           }).catch(err => console.error('Audio preview play failed:', err));
         } else {
+          // If no preview, automatically try to skip to the next track recursively
           setIsPlaying(false);
           setPlaybackState({ progressMs: 0 });
+          // Optional: trigger nextTrack() here if we want to skip unplayable tracks automatically
         }
       } else {
         setIsPlaying(false);
@@ -231,10 +243,13 @@ function useSpotifyPlayerInternal() {
 
     audioFallback.addEventListener('ended', handleEnded);
     return () => audioFallback.removeEventListener('ended', handleEnded);
-  }, [queue, queueIndex]);
+  }, []);
 
   // Controls Actions
   const playTrack = async (track: TrackObject) => {
+    const state = useMusicStore.getState();
+    const { isPremium, deviceId, queue, queueIndex, setCurrentTrack, setIsPlaying, setPlaybackState, currentTrack } = state;
+
     if (!isPremium) {
       // Free Account Fallback
       if (track.preview_url) {
@@ -264,9 +279,24 @@ function useSpotifyPlayerInternal() {
     }
 
     try {
-      // Find track in queue to set offset, if it exists
-      const uriList = queue.length > 0 ? queue.map(t => t.uri) : [track.uri];
-      const offsetObj = queue.length > 0 ? { position: queueIndex } : undefined;
+      // Spotify API allows a maximum of 100 URIs in the request
+      let uriList = [track.uri];
+      let offsetObj = undefined;
+
+      if (queue.length > 0) {
+        if (queue.length <= 100) {
+          uriList = queue.map(t => t.uri);
+          offsetObj = { position: queueIndex };
+        } else {
+          // Create a 100-item window around the queueIndex
+          const startIdx = Math.max(0, queueIndex - 50);
+          const endIdx = Math.min(queue.length, startIdx + 100);
+          const finalStartIdx = Math.max(0, endIdx - 100); // Adjust if near the end
+          
+          uriList = queue.slice(finalStartIdx, endIdx).map(t => t.uri);
+          offsetObj = { position: queueIndex - finalStartIdx };
+        }
+      }
       
       await axiosInstance.put(`/api/spotify/me/player/play?device_id=${deviceId}`, {
         uris: uriList,
@@ -280,6 +310,8 @@ function useSpotifyPlayerInternal() {
   };
 
   const togglePlayPause = async () => {
+    const { isPremium, isPlaying, setIsPlaying } = useMusicStore.getState();
+
     if (!isPremium) {
       // Free Account Fallback — check src properly (empty string is falsy in JS)
       if (!audioFallback.src || audioFallback.src === window.location.href) return;
@@ -309,71 +341,110 @@ function useSpotifyPlayerInternal() {
   };
 
   const nextTrack = async () => {
+    const { isPremium, queue, queueIndex, setQueueIndex, setCurrentTrack, setIsPlaying, setPlaybackState } = useMusicStore.getState();
+
     if (!isPremium) {
+      // Free Account: manually advance to the next track that has a preview_url
       if (queue.length > 0 && queueIndex < queue.length - 1) {
-        const nextIdx = queueIndex + 1;
-        setQueueIndex(nextIdx);
-        const nextTrk = queue[nextIdx];
-        if (nextTrk.preview_url) {
-          audioFallback.src = nextTrk.preview_url;
+        let nextIdx = queueIndex + 1;
+        
+        // Fast-forward to the next playable track
+        while (nextIdx < queue.length && !queue[nextIdx].preview_url) {
+          nextIdx++;
+        }
+
+        if (nextIdx < queue.length) {
+          setQueueIndex(nextIdx);
+          const nextTrk = queue[nextIdx];
+          audioFallback.src = nextTrk.preview_url as string;
           audioFallback.play().then(() => {
             setCurrentTrack(nextTrk);
             setIsPlaying(true);
             setPlaybackState({ progressMs: 0 });
           }).catch(err => console.error('Audio preview play failed:', err));
         } else {
-          alert('Next track does not have a preview available.');
+          alert('End of playable queue reached.');
         }
       }
       return;
     }
 
-    if (playerRef.current) {
-      try {
-        await playerRef.current.nextTrack();
-      } catch (err) {
-        console.error('Failed to skip to next via SDK:', err);
-      }
-    } else {
-      try {
-        await axiosInstance.post('/api/spotify/me/player/next');
-      } catch (err) {
-        console.error('Failed to skip to next:', err);
+    // Premium Account
+    if (queue.length > 0 && queueIndex < queue.length - 1) {
+      const nextIdx = queueIndex + 1;
+      setQueueIndex(nextIdx);
+      
+      // For large playlists (>100 songs), update the sliding window. Otherwise, use fast SDK controls.
+      if (queue.length <= 100) {
+        if (playerRef.current) {
+          try {
+            await playerRef.current.nextTrack();
+          } catch (err) {
+            console.error('Failed to skip to next via SDK:', err);
+          }
+        } else {
+          try {
+            await axiosInstance.post('/api/spotify/me/player/next');
+          } catch (err) {
+            console.error('Failed to skip to next:', err);
+          }
+        }
+      } else {
+        await playTrack(queue[nextIdx]);
       }
     }
   };
 
   const prevTrack = async () => {
+    const { isPremium, queue, queueIndex, setQueueIndex, setCurrentTrack, setIsPlaying, setPlaybackState } = useMusicStore.getState();
+
     if (!isPremium) {
       if (queue.length > 0 && queueIndex > 0) {
-        const prevIdx = queueIndex - 1;
-        setQueueIndex(prevIdx);
-        const prevTrk = queue[prevIdx];
-        if (prevTrk.preview_url) {
-          audioFallback.src = prevTrk.preview_url;
+        let prevIdx = queueIndex - 1;
+        
+        // Rewind to the previous playable track
+        while (prevIdx >= 0 && !queue[prevIdx].preview_url) {
+          prevIdx--;
+        }
+
+        if (prevIdx >= 0) {
+          setQueueIndex(prevIdx);
+          const prevTrk = queue[prevIdx];
+          audioFallback.src = prevTrk.preview_url as string;
           audioFallback.play().then(() => {
             setCurrentTrack(prevTrk);
             setIsPlaying(true);
             setPlaybackState({ progressMs: 0 });
           }).catch(err => console.error('Audio preview play failed:', err));
         } else {
-          alert('Previous track does not have a preview available.');
+          alert('Beginning of playable queue reached.');
         }
       }
       return;
     }
 
-    if (playerRef.current) {
-      try {
-        await playerRef.current.previousTrack();
-      } catch (err) {
-        console.error('Failed to skip to previous via SDK:', err);
-      }
-    } else {
-      try {
-        await axiosInstance.post('/api/spotify/me/player/previous');
-      } catch (err) {
-        console.error('Failed to skip to previous:', err);
+    // Premium Account
+    if (queue.length > 0 && queueIndex > 0) {
+      const prevIdx = queueIndex - 1;
+      setQueueIndex(prevIdx);
+
+      // For large playlists (>100 songs), update the sliding window. Otherwise, use fast SDK controls.
+      if (queue.length <= 100) {
+        if (playerRef.current) {
+          try {
+            await playerRef.current.previousTrack();
+          } catch (err) {
+            console.error('Failed to skip to previous via SDK:', err);
+          }
+        } else {
+          try {
+            await axiosInstance.post('/api/spotify/me/player/previous');
+          } catch (err) {
+            console.error('Failed to skip to previous:', err);
+          }
+        }
+      } else {
+        await playTrack(queue[prevIdx]);
       }
     }
   };
