@@ -35,6 +35,8 @@ interface MusicStore {
     profileImage: string;
   } | null;
   likedTrackIds: string[];
+  queue: TrackObject[];
+  queueIndex: number;
 
   // ACTIONS
   setAccessToken: (token: string | null) => void;
@@ -50,6 +52,8 @@ interface MusicStore {
   setLikedTrackIds: (ids: string[]) => void;
   addLikedTrackId: (id: string) => void;
   removeLikedTrackId: (id: string) => void;
+  setQueue: (tracks: TrackObject[], startIndex?: number) => void;
+  setQueueIndex: (index: number) => void;
   clearStore: () => void;
 }
 
@@ -62,6 +66,8 @@ export const useMusicStore = create<MusicStore>((set) => ({
   isPremium: false,
   userProfile: null,
   likedTrackIds: [],
+  queue: [],
+  queueIndex: 0,
   playbackState: {
     volume: 0.5,
     progressMs: 0,
@@ -103,6 +109,10 @@ export const useMusicStore = create<MusicStore>((set) => ({
 
   removeLikedTrackId: (id) => set((state) => ({ likedTrackIds: state.likedTrackIds.filter(x => x !== id) })),
   
+  setQueue: (tracks, startIndex = 0) => set({ queue: tracks, queueIndex: startIndex }),
+  
+  setQueueIndex: (index) => set({ queueIndex: index }),
+  
   clearStore: () => set({
     accessToken: null,
     currentTrack: null,
@@ -111,6 +121,8 @@ export const useMusicStore = create<MusicStore>((set) => ({
     isPremium: false,
     userProfile: null,
     likedTrackIds: [],
+    queue: [],
+    queueIndex: 0,
     playbackState: {
       volume: 0.5,
       progressMs: 0,

@@ -21,7 +21,7 @@ interface PlaylistInfo {
 export default function PlaylistDetail() {
   const { id } = useParams<{ id: string }>();
   const { playTrack } = useSpotifyPlayer();
-  const { likedTrackIds, addLikedTrackId, removeLikedTrackId } = useMusicStore();
+  const { likedTrackIds, addLikedTrackId, removeLikedTrackId, setQueue } = useMusicStore();
   const [playlist, setPlaylist] = useState<PlaylistInfo | null>(null);
   const [tracks, setTracks] = useState<TrackObject[]>([]);
   const [loading, setLoading] = useState(true);
@@ -203,7 +203,10 @@ export default function PlaylistDetail() {
                 return (
                   <div
                     key={`${track.id}-${idx}`}
-                    onClick={() => playTrack(track)}
+                    onClick={() => {
+                      setQueue(tracks, idx);
+                      playTrack(track);
+                    }}
                     className="grid grid-cols-[auto_1fr_1fr_auto] gap-4 px-5 py-3 items-center text-[13px] hover:bg-paper-3/50 group cursor-pointer transition-colors"
                   >
                     {/* Index / Play overlay */}

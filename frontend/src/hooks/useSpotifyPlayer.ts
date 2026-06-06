@@ -38,6 +38,9 @@ function useSpotifyPlayerInternal() {
     setPlaybackState,
     setIsPremium,
     setVolume,
+    queue,
+    queueIndex,
+    setQueueIndex,
   } = useMusicStore();
 
   const playerRef = useRef<any>(null);
@@ -204,14 +207,31 @@ function useSpotifyPlayerInternal() {
 
   // Audio Fallback end event listener
   useEffect(() => {
-    const handleEnded = () => {
-      setIsPlaying(false);
-      setPlaybackState({ progressMs: 0 });
+    const handleEnded = async () => {
+      if (queue.length > 0 && queueIndex < queue.length - 1) {
+        const nextIdx = queueIndex + 1;
+        setQueueIndex(nextIdx);
+        const nextTrk = queue[nextIdx];
+        if (nextTrk.preview_url) {
+          audioFallback.src = nextTrk.preview_url;
+          audioFallback.play().then(() => {
+            setCurrentTrack(nextTrk);
+            setIsPlaying(true);
+            setPlaybackState({ progressMs: 0 });
+          }).catch(err => console.error('Audio preview play failed:', err));
+        } else {
+          setIsPlaying(false);
+          setPlaybackState({ progressMs: 0 });
+        }
+      } else {
+        setIsPlaying(false);
+        setPlaybackState({ progressMs: 0 });
+      }
     };
 
     audioFallback.addEventListener('ended', handleEnded);
     return () => audioFallback.removeEventListener('ended', handleEnded);
-  }, []);
+  }, [queue, queueIndex]);
 
   // Controls Actions
   const playTrack = async (track: TrackObject) => {
@@ -244,8 +264,13 @@ function useSpotifyPlayerInternal() {
     }
 
     try {
+      // Find track in queue to set offset, if it exists
+      const uriList = queue.length > 0 ? queue.map(t => t.uri) : [track.uri];
+      const offsetObj = queue.length > 0 ? { position: queueIndex } : undefined;
+      
       await axiosInstance.put(`/api/spotify/me/player/play?device_id=${deviceId}`, {
-        uris: [track.uri],
+        uris: uriList,
+        offset: offsetObj,
       });
       setCurrentTrack(track);
       setIsPlaying(true);
@@ -285,7 +310,21 @@ function useSpotifyPlayerInternal() {
 
   const nextTrack = async () => {
     if (!isPremium) {
-      alert('Skip next is limited on free preview accounts.');
+      if (queue.length > 0 && queueIndex < queue.length - 1) {
+        const nextIdx = queueIndex + 1;
+        setQueueIndex(nextIdx);
+        const nextTrk = queue[nextIdx];
+        if (nextTrk.preview_url) {
+          audioFallback.src = nextTrk.preview_url;
+          audioFallback.play().then(() => {
+            setCurrentTrack(nextTrk);
+            setIsPlaying(true);
+            setPlaybackState({ progressMs: 0 });
+          }).catch(err => console.error('Audio preview play failed:', err));
+        } else {
+          alert('Next track does not have a preview available.');
+        }
+      }
       return;
     }
 
@@ -306,7 +345,21 @@ function useSpotifyPlayerInternal() {
 
   const prevTrack = async () => {
     if (!isPremium) {
-      alert('Skip previous is limited on free preview accounts.');
+      if (queue.length > 0 && queueIndex > 0) {
+        const prevIdx = queueIndex - 1;
+        setQueueIndex(prevIdx);
+        const prevTrk = queue[prevIdx];
+        if (prevTrk.preview_url) {
+          audioFallback.src = prevTrk.preview_url;
+          audioFallback.play().then(() => {
+            setCurrentTrack(prevTrk);
+            setIsPlaying(true);
+            setPlaybackState({ progressMs: 0 });
+          }).catch(err => console.error('Audio preview play failed:', err));
+        } else {
+          alert('Previous track does not have a preview available.');
+        }
+      }
       return;
     }
 
