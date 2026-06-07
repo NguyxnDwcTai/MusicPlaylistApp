@@ -1,7 +1,7 @@
 import express from 'express';
 import axios from 'axios';
 import querystring from 'querystring';
-import User from '../models/User.js';
+import { dbFindUserBySpotifyId, dbCreateOrUpdateUser } from '../models/dbAdapter.js';
 import { authMiddleware, fetchSpotifyUser } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -102,22 +102,8 @@ router.get('/callback', async (req, res) => {
     const email = spotifyUser.email || '';
     const profileImage = spotifyUser.images && spotifyUser.images.length > 0 ? spotifyUser.images[0].url : '';
 
-    // Save or update user in MongoDB
-    let user = await User.findOne({ spotifyId });
-    if (!user) {
-      user = new User({
-        spotifyId,
-        displayName,
-        email,
-        profileImage,
-      });
-      await user.save();
-    } else {
-      user.displayName = displayName;
-      user.email = email;
-      user.profileImage = profileImage;
-      await user.save();
-    }
+    // Save or update user in fallback-resilient database layer
+    const user = await dbCreateOrUpdateUser(spotifyId, { displayName, email, profileImage });
 
     // Set HTTP-only cookies
     res.cookie('accessToken', access_token, {
@@ -208,7 +194,7 @@ router.get('/refresh', async (req, res) => {
 router.get('/me', authMiddleware, async (req, res) => {
   try {
     const spotifyUser = await fetchSpotifyUser(req.accessToken);
-    const user = await User.findOne({ spotifyId: spotifyUser.id });
+    const user = await dbFindUserBySpotifyId(spotifyUser.id);
     
     if (!user) {
       return res.status(404).json({ error: 'User not found in database' });

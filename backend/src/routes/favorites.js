@@ -1,96 +1,101 @@
 import express from 'express';
-import Favorite from '../models/Favorite.js';
-import User from '../models/User.js';
-import { authMiddleware, fetchSpotifyUser } from '../middleware/authMiddleware.js';
+import axios from 'axios';
+import { authMiddleware } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 // Apply authMiddleware to all favorite routes
 router.use(authMiddleware);
 
-// Helper to get MongoDB User ID from Spotify Access Token
-const getMongoUser = async (accessToken) => {
-  const spotifyUser = await fetchSpotifyUser(accessToken);
-  const user = await User.findOne({ spotifyId: spotifyUser.id });
-  if (!user) {
-    const err = new Error('User not found');
-    err.status = 404;
-    throw err;
-  }
-  return user;
-};
-
-// GET /api/favorites
+// GET /api/favorites (Fetch Spotify Saved Tracks and format them for the client)
 router.get('/', async (req, res) => {
   try {
-    const user = await getMongoUser(req.accessToken);
-    const favorites = await Favorite.find({ userId: user._id }).sort({ createdAt: -1 });
+    const response = await axios.get('https://api.spotify.com/v1/me/tracks?limit=50', {
+      headers: {
+        Authorization: `Bearer ${req.accessToken}`,
+      },
+    });
+
+    const items = response.data.items || [];
+    const favorites = items.map((item) => ({
+      _id: item.track.id,
+      spotifyTrackId: item.track.id,
+      trackName: item.track.name,
+      artistName: item.track.artists.map((a) => a.name).join(', '),
+      albumCoverUrl: item.track.album.images[0]?.url || '',
+      createdAt: item.added_at,
+    }));
+
     return res.json(favorites);
   } catch (error) {
-    console.error('Error fetching favorites:', error.message);
-    if (error.status) {
-      return res.status(error.status).json({ error: error.message });
+    console.error('Error fetching Spotify saved tracks:', error.response?.data || error.message);
+    if (error.response) {
+      return res.status(error.response.status).json(error.response.data);
     }
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// POST /api/favorites/toggle
+// POST /api/favorites/toggle (Toggle Spotify Saved Track state)
 router.post('/toggle', async (req, res) => {
-  const { spotifyTrackId, trackName, artistName, albumCoverUrl } = req.body;
+  const { spotifyTrackId } = req.body;
 
-  if (!spotifyTrackId || !trackName || !artistName) {
-    return res.status(400).json({ error: 'Missing spotifyTrackId, trackName, or artistName' });
+  if (!spotifyTrackId) {
+    return res.status(400).json({ error: 'Missing spotifyTrackId' });
   }
 
   try {
-    const user = await getMongoUser(req.accessToken);
+    // 1. Check if track is already saved on Spotify
+    const containsRes = await axios.get(`https://api.spotify.com/v1/me/tracks/contains?ids=${spotifyTrackId}`, {
+      headers: {
+        Authorization: `Bearer ${req.accessToken}`,
+      },
+    });
 
-    // Check if favorite already exists
-    const existingFavorite = await Favorite.findOne({ userId: user._id, spotifyTrackId });
-    
-    if (existingFavorite) {
-      // If yes, remove it
-      await Favorite.deleteOne({ _id: existingFavorite._id });
-      return res.json({ success: true, liked: false, message: 'Track removed from favorites' });
-    } else {
-      // If no, save it
-      const favorite = new Favorite({
-        userId: user._id,
-        spotifyTrackId,
-        trackName,
-        artistName,
-        albumCoverUrl,
+    const isLiked = containsRes.data[0];
+
+    if (isLiked) {
+      // 2. Remove it if already saved
+      await axios.delete(`https://api.spotify.com/v1/me/tracks?ids=${spotifyTrackId}`, {
+        headers: {
+          Authorization: `Bearer ${req.accessToken}`,
+        },
       });
-      await favorite.save();
-      return res.status(201).json({ success: true, liked: true, favorite, message: 'Track added to favorites' });
+      return res.json({ success: true, liked: false, message: 'Track removed from Spotify favorites' });
+    } else {
+      // 3. Save it if not saved
+      await axios.put(`https://api.spotify.com/v1/me/tracks?ids=${spotifyTrackId}`, {}, {
+        headers: {
+          Authorization: `Bearer ${req.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      return res.json({ success: true, liked: true, message: 'Track added to Spotify favorites' });
     }
   } catch (error) {
-    console.error('Error toggling favorite:', error.message);
-    if (error.status) {
-      return res.status(error.status).json({ error: error.message });
+    console.error('Error toggling Spotify favorite:', error.response?.data || error.message);
+    if (error.response) {
+      return res.status(error.response.status).json(error.response.data);
     }
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// DELETE /api/favorites/:spotifyTrackId (for compatibility)
+// DELETE /api/favorites/:spotifyTrackId
 router.delete('/:spotifyTrackId', async (req, res) => {
   const { spotifyTrackId } = req.params;
 
   try {
-    const user = await getMongoUser(req.accessToken);
-    const result = await Favorite.findOneAndDelete({ userId: user._id, spotifyTrackId });
-
-    if (!result) {
-      return res.status(404).json({ error: 'Favorite not found' });
-    }
-
-    return res.json({ success: true, message: 'Track removed from favorites' });
+    await axios.delete(`https://api.spotify.com/v1/me/tracks?ids=${spotifyTrackId}`, {
+      headers: {
+        Authorization: `Bearer ${req.accessToken}`,
+      },
+    });
+    return res.json({ success: true, message: 'Track removed from Spotify favorites' });
   } catch (error) {
-    console.error('Error deleting favorite:', error.message);
-    if (error.status) {
-      return res.status(error.status).json({ error: error.message });
+    console.error('Error deleting Spotify favorite:', error.response?.data || error.message);
+    if (error.response) {
+      return res.status(error.response.status).json(error.response.data);
     }
     return res.status(500).json({ error: 'Internal server error' });
   }

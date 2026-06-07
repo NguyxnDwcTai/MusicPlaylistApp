@@ -1,15 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, ChevronDown, User, LogOut, ExternalLink } from 'lucide-react';
+import { Search, ChevronDown, User, LogOut, ExternalLink, Menu } from 'lucide-react';
 import { useMusicStore } from '../../store/useMusicStore';
 import axiosInstance from '../../lib/axios';
 
 interface HeaderProps {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  setIsMobileMenuOpen: (open: boolean) => void;
 }
 
-export default function Header({ searchQuery, setSearchQuery }: HeaderProps) {
+export default function Header({ searchQuery, setSearchQuery, setIsMobileMenuOpen }: HeaderProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -46,26 +47,35 @@ export default function Header({ searchQuery, setSearchQuery }: HeaderProps) {
   };
 
   return (
-    <header className="h-16 bg-paper/30 backdrop-blur-md border-b border-rule flex items-center justify-between px-8 select-none z-30">
-      {/* Search Input (visible only on /search) */}
-      <div className="flex-1 max-w-md">
-        {isSearchRoute ? (
-          <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral" size={16} />
-            <input
-              type="text"
-              placeholder="What do you want to play?"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-paper-2 border border-rule hover:border-neutral/30 focus:border-accent focus:outline-none rounded-full text-[13px] text-ink placeholder:text-muted/60 transition-colors"
-            />
-          </div>
-        ) : (
-          <div className="text-[14px] font-medium text-neutral">
-            {location.pathname === '/dashboard' && 'Dashboard'}
-            {location.pathname === '/library' && 'Your Library'}
-          </div>
-        )}
+    <header className="h-16 bg-paper/30 backdrop-blur-md border-b border-rule flex items-center justify-between px-4 md:px-8 select-none z-30">
+      <div className="flex items-center flex-1 max-w-full md:max-w-md">
+        <button 
+          className="md:hidden mr-3 text-neutral hover:text-ink focus:outline-none"
+          onClick={() => setIsMobileMenuOpen(true)}
+        >
+          <Menu size={20} />
+        </button>
+        
+        {/* Search Input (visible only on /search) */}
+        <div className="flex-1 w-full">
+          {isSearchRoute ? (
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral" size={16} />
+              <input
+                type="text"
+                placeholder="What do you want to play?"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-paper-2 border border-rule hover:border-neutral/30 focus:border-accent focus:outline-none rounded-full text-[13px] text-ink placeholder:text-muted/60 transition-colors"
+              />
+            </div>
+          ) : (
+            <div className="text-[14px] font-medium text-neutral">
+              {location.pathname === '/dashboard' && 'Dashboard'}
+              {location.pathname === '/library' && 'Your Library'}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* User Actions */}
@@ -85,7 +95,7 @@ export default function Header({ searchQuery, setSearchQuery }: HeaderProps) {
               {getInitials(userProfile?.displayName || 'User')}
             </div>
           )}
-          <span className="text-[12.5px] font-medium text-ink max-w-[120px] truncate">
+          <span className="hidden md:inline-block text-[12.5px] font-medium text-ink max-w-[120px] truncate">
             {userProfile?.displayName || 'User Profile'}
           </span>
           <ChevronDown size={14} className={`text-neutral transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />

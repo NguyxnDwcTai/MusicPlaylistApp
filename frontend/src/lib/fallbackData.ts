@@ -1,11 +1,17 @@
-import express from 'express';
-import axios from 'axios';
-import { authMiddleware } from '../middleware/authMiddleware.js';
+export interface TrackObject {
+  id: string;
+  name: string;
+  artists: { name: string }[];
+  album: {
+    name: string;
+    images: { url: string }[];
+  };
+  duration_ms: number;
+  uri: string;
+  preview_url?: string | null;
+}
 
-const router = express.Router();
-
-// Fallback Mock Data for Spotify Quota Restrictions (search and preview play fallback)
-const fallbackTracks = [
+export const fallbackTracks: TrackObject[] = [
   {
     id: 'ah-1',
     name: 'Midnight Horizon',
@@ -143,7 +149,14 @@ const fallbackTracks = [
   }
 ];
 
-const fallbackArtists = [
+export interface ArtistObject {
+  id: string;
+  name: string;
+  genres: string[];
+  images: { url: string }[];
+}
+
+export const fallbackArtists: ArtistObject[] = [
   { id: 'art-1', name: 'Glitch Horizon', genres: ['synthwave', 'retrowave'], images: [{ url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300&auto=format&fit=crop&q=60' }] },
   { id: 'art-2', name: 'Vapor Dreamer', genres: ['dreamwave', 'ambient'], images: [{ url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300&auto=format&fit=crop&q=60' }] },
   { id: 'art-3', name: 'Pulse Weaver', genres: ['cyberpunk', 'electronic'], images: [{ url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300&auto=format&fit=crop&q=60' }] },
@@ -160,7 +173,14 @@ const fallbackArtists = [
   { id: '0NSqZ4421b4f4VGl5RdzCX', name: 'Kavinsky', genres: ['synthwave', 'outrun'], images: [{ url: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&auto=format&fit=crop&q=60' }] }
 ];
 
-const fallbackAlbums = [
+export interface AlbumObject {
+  id: string;
+  name: string;
+  artists: { name: string }[];
+  images: { url: string }[];
+}
+
+export const fallbackAlbums: AlbumObject[] = [
   { id: 'alb-1', name: 'Neon Drive', artists: [{ name: 'Glitch Horizon' }], images: [{ url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300&auto=format&fit=crop&q=60' }] },
   { id: 'alb-2', name: 'Nocturne Valley', artists: [{ name: 'Vapor Dreamer' }], images: [{ url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300&auto=format&fit=crop&q=60' }] },
   { id: 'alb-3', name: 'Chroma Phase', artists: [{ name: 'Pulse Weaver' }], images: [{ url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300&auto=format&fit=crop&q=60' }] },
@@ -178,273 +198,14 @@ const fallbackAlbums = [
   { id: '3XyoZ48J22x1G6y24z38Sy', name: 'Outrun', artists: [{ name: 'Kavinsky' }], images: [{ url: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&auto=format&fit=crop&q=60' }] }
 ];
 
-// Apply authMiddleware to all proxy routes
-router.use(authMiddleware);
-
-// GET /api/spotify/me (Custom merged endpoint as required)
-router.get('/me', async (req, res) => {
-  try {
-    // Fetch Spotify profile
-    const profilePromise = axios.get('https://api.spotify.com/v1/me', {
-      headers: { Authorization: `Bearer ${req.accessToken}` },
-    });
-
-    // Fetch Spotify player state
-    const playerPromise = axios.get('https://api.spotify.com/v1/me/player', {
-      headers: { Authorization: `Bearer ${req.accessToken}` },
-    });
-
-    // Execute concurrently
-    const [profileRes, playerRes] = await Promise.all([
-      profilePromise,
-      playerPromise.catch((err) => {
-        console.log('Player endpoint error/no active device:', err.message);
-        return { status: 204, data: null };
-      }),
-    ]);
-
-    const playback = playerRes.status === 204 ? null : playerRes.data;
-
-    return res.json({
-      user: profileRes.data,
-      playback,
-    });
-  } catch (error) {
-    console.error('Error in /api/spotify/me proxy:', error.response?.data || error.message);
-    if (error.response) {
-      if (error.response.status === 401) {
-        return res.status(401).json({ error: 'session_expired' });
-      }
-      return res.status(error.response.status).json(error.response.data);
-    }
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// GET /api/spotify/search (Proxy search endpoint)
-router.get('/search', async (req, res) => {
-  const q = req.query.q;
-  const type = req.query.type || 'track,artist,album';
-
-  if (!q) {
-    return res.status(400).json({ error: 'Missing search query (q)' });
-  }
-
-  let limit = 20;
-  if (req.query.limit) {
-    const parsedLimit = parseInt(req.query.limit, 10);
-    if (!isNaN(parsedLimit) && parsedLimit >= 1 && parsedLimit <= 50) {
-      limit = parsedLimit;
-    }
-  }
-
-  console.log(`[Spotify Search] Fetching search results for q="${q}", type="${type}", limit=${limit}`);
-
-  try {
-    // Phase 1: Try fetching with limit parameter
-    const response = await axios.get('https://api.spotify.com/v1/search', {
-      params: {
-        q,
-        type,
-        limit: String(limit),
-      },
-      headers: {
-        Authorization: `Bearer ${req.accessToken}`,
-      },
-    });
-    return res.status(response.status).json(response.data);
-  } catch (error) {
-    console.warn(`[Spotify Search] First search attempt failed with status ${error.response?.status || 'network_error'}. Trying without limit parameter...`);
-    
-    try {
-      // Phase 2: Try fetching without limit parameter (Spotify defaults to 20)
-      const response = await axios.get('https://api.spotify.com/v1/search', {
-        params: {
-          q,
-          type,
-        },
-        headers: {
-          Authorization: `Bearer ${req.accessToken}`,
-        },
-      });
-      console.log('[Spotify Search] Search without limit parameter succeeded!');
-      return res.status(response.status).json(response.data);
-    } catch (secondError) {
-      console.error('Error in /api/spotify/search proxy (both attempts failed):', secondError.response?.data ? JSON.stringify(secondError.response.data) : secondError.message);
-      
-      // Spotify returned 400 "Invalid limit" or 403 Forbidden due to developer account catalog access restrictions.
-      // We fall back dynamically to a high-quality local catalog search to keep the UI fully functional.
-      const isRestricted = secondError.response && (
-        (secondError.response.status === 400 && secondError.response.data?.error?.message === 'Invalid limit') ||
-        secondError.response.status === 403
-      );
-
-      if (isRestricted || !secondError.response) {
-        console.log(`[Spotify Search Fallback] Spotify Search API is restricted. Performing local catalog match for: "${q}"`);
-        
-        const terms = q.toLowerCase().split(/\s+/);
-
-        const getTrackTags = (trackId) => {
-          if (trackId.startsWith('ah-')) return ["synthwave", "drive", "retro", "electronic", "neon", "glitch", "horizon"];
-          if (trackId.startsWith('df-')) return ["lofi", "chill", "coding", "focus", "ambient", "sleep", "compiler", "coffee", "syntax"];
-          if (trackId.startsWith('ca-')) return ["ambient", "cyber", "techno", "dark", "electronic", "sleep", "modular", "ghost", "aether", "pilot"];
-          if (trackId === 'pop-1' || trackId === 'pop-2') return ["pop", "r&b", "hits", "after hours", "starboy", "weeknd", "the weeknd", "blinding", "lights"];
-          if (trackId === 'pop-3') return ["pop", "french house", "electronic", "dance", "hits", "daft punk", "get lucky"];
-          if (trackId === 'synth-1') return ["synthwave", "retrowave", "sunset", "electronic", "chill", "midnight", "the midnight"];
-          if (trackId === 'synth-2') return ["synthwave", "chillwave", "resonance", "ambient", "electronic", "home"];
-          if (trackId === 'synth-3') return ["synthwave", "outrun", "nightcall", "electronic", "dance", "kavinsky"];
-          return [];
-        };
-        
-        const matchedTracks = fallbackTracks.filter(t => {
-          const tags = getTrackTags(t.id);
-          return terms.some(term => 
-            t.name.toLowerCase().includes(term) || 
-            t.album.name.toLowerCase().includes(term) ||
-            t.artists.some(a => a.name.toLowerCase().includes(term)) ||
-            tags.some(tag => tag.includes(term))
-          );
-        });
-        
-        const matchedArtists = fallbackArtists.filter(a => 
-          terms.some(term => 
-            a.name.toLowerCase().includes(term) ||
-            (a.genres && a.genres.some(g => g.toLowerCase().includes(term)))
-          )
-        );
-        
-        const matchedAlbums = fallbackAlbums.filter(al => 
-          terms.some(term => 
-            al.name.toLowerCase().includes(term) || 
-            al.artists.some(a => a.name.toLowerCase().includes(term))
-          )
-        );
-
-        const tracksToReturn = matchedTracks.slice(0, limit);
-        if (tracksToReturn.length < limit) {
-          const needed = limit - tracksToReturn.length;
-          for (let i = 0; i < needed; i++) {
-            tracksToReturn.push({
-              id: `mock-track-${q.replace(/\s+/g, '-')}-${i}`,
-              name: `${q.charAt(0).toUpperCase() + q.slice(1)} Mix ${i + 1}`,
-              artists: [{ name: matchedArtists[0]?.name || 'Unknown Artist' }],
-              album: { name: `${q} Session`, images: [{ url: 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=300&auto=format&fit=crop&q=60' }] },
-              duration_ms: Math.floor(Math.random() * 120000) + 180000,
-              uri: `spotify:track:mock-${Date.now()}-${i}`,
-              preview_url: null
-            });
-          }
-        }
-
-        const artistsToReturn = matchedArtists.slice(0, limit);
-        if (artistsToReturn.length < limit) {
-          const needed = limit - artistsToReturn.length;
-          for (let i = 0; i < needed; i++) {
-            artistsToReturn.push({
-              id: `mock-art-${q.replace(/\s+/g, '-')}-${i}`,
-              name: `${q.charAt(0).toUpperCase() + q.slice(1)} Creator ${i + 1}`,
-              genres: [q.toLowerCase()],
-              images: [{ url: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=300&auto=format&fit=crop&q=60' }]
-            });
-          }
-        }
-
-        const albumsToReturn = matchedAlbums.slice(0, limit);
-        if (albumsToReturn.length < limit) {
-          const needed = limit - albumsToReturn.length;
-          for (let i = 0; i < needed; i++) {
-            albumsToReturn.push({
-              id: `mock-alb-${q.replace(/\s+/g, '-')}-${i}`,
-              name: `${q.charAt(0).toUpperCase() + q.slice(1)} Vol. ${i + 1}`,
-              artists: [{ name: matchedArtists[0]?.name || 'Unknown Artist' }],
-              images: [{ url: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=300&auto=format&fit=crop&q=60' }]
-            });
-          }
-        }
-
-        return res.json({
-          tracks: { items: tracksToReturn },
-          artists: { items: artistsToReturn },
-          albums: { items: albumsToReturn }
-        });
-      }
-
-      if (secondError.response) {
-        return res.status(secondError.response.status).json(secondError.response.data);
-      }
-      return res.status(500).json({ error: 'Internal server error' });
-    }
-  }
-});
-
-// GET /api/spotify/playlists (Proxy current user playlists)
-router.get('/playlists', async (req, res) => {
-  try {
-    const response = await axios.get('https://api.spotify.com/v1/me/playlists', {
-      params: req.query,
-      headers: {
-        Authorization: `Bearer ${req.accessToken}`,
-      },
-    });
-    return res.status(response.status).json(response.data);
-  } catch (error) {
-    console.error('Error in /api/spotify/playlists proxy:', error.response?.data || error.message);
-    if (error.response) {
-      return res.status(error.response.status).json(error.response.data);
-    }
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// GET /api/spotify/playlists/:id/tracks (Proxy playlist tracks)
-router.get('/playlists/:id/tracks', async (req, res) => {
-  try {
-    const response = await axios.get(`https://api.spotify.com/v1/playlists/${req.params.id}/items`, {
-      params: req.query,
-      headers: {
-        Authorization: `Bearer ${req.accessToken}`,
-      },
-    });
-    return res.status(response.status).json(response.data);
-  } catch (error) {
-    console.error('Error in /api/spotify/playlists/:id/tracks proxy:', error.response?.data || error.message);
-    if (error.response) {
-      return res.status(error.response.status).json(error.response.data);
-    }
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Wildcard Proxy Route to forward any other Spotify API request
-router.all('*', async (req, res) => {
-  const spotifyPath = req.path;
-  const method = req.method;
-
-  try {
-    const response = await axios({
-      url: `https://api.spotify.com/v1${spotifyPath}`,
-      method: method,
-      data: method === 'GET' ? undefined : req.body,
-      params: req.query,
-      headers: {
-        Authorization: `Bearer ${req.accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    return res.status(response.status).json(response.data);
-  } catch (error) {
-    console.error(`Error proxying ${method} ${spotifyPath}:`, error.response?.data || error.message);
-    if (error.response) {
-      if (error.response.status === 429) {
-        const retryAfter = error.response.headers['retry-after'] || 1;
-        res.setHeader('Retry-After', retryAfter);
-        return res.status(429).json({ error: 'rate_limited', retryAfter });
-      }
-      return res.status(error.response.status).json(error.response.data);
-    }
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-export default router;
+export const getFallbackTrackTags = (trackId: string): string[] => {
+  if (trackId.startsWith('ah-')) return ["synthwave", "drive", "retro", "electronic", "neon"];
+  if (trackId.startsWith('df-')) return ["lofi", "chill", "coding", "focus", "ambient", "sleep"];
+  if (trackId.startsWith('ca-')) return ["ambient", "cyber", "techno", "dark", "electronic", "sleep"];
+  if (trackId === 'pop-1' || trackId === 'pop-2') return ["pop", "r&b", "hits", "after hours", "starboy", "weeknd"];
+  if (trackId === 'pop-3') return ["pop", "french house", "electronic", "dance", "hits", "daft punk"];
+  if (trackId === 'synth-1') return ["synthwave", "retrowave", "sunset", "electronic", "chill", "midnight"];
+  if (trackId === 'synth-2') return ["synthwave", "chillwave", "resonance", "ambient", "electronic", "home"];
+  if (trackId === 'synth-3') return ["synthwave", "outrun", "nightcall", "electronic", "dance", "kavinsky"];
+  return [];
+};

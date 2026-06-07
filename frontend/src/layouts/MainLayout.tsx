@@ -10,6 +10,7 @@ import axiosInstance from '../lib/axios';
 
 export default function MainLayout() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const { isPremium, setLikedTrackIds } = useMusicStore();
   
@@ -31,16 +32,16 @@ export default function MainLayout() {
   }, [setLikedTrackIds]);
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-paper text-ink flex flex-col font-body">
+    <div className="h-[100dvh] w-full overflow-hidden bg-paper text-ink flex flex-col font-body">
       {/* Main Grid View */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         {/* Navigation Sidebar */}
-        <Sidebar />
+        <Sidebar isMobileMenuOpen={isMobileMenuOpen} setIsMobileMenuOpen={setIsMobileMenuOpen} />
 
         {/* Content Container */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden w-full">
           {/* Header */}
-          <Header searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
+          <Header searchQuery={searchQuery} setSearchQuery={setSearchQuery} setIsMobileMenuOpen={setIsMobileMenuOpen} />
 
           {/* Premium Fallback Banner */}
           {!isPremium && !bannerDismissed && (
@@ -61,7 +62,7 @@ export default function MainLayout() {
           )}
 
           {/* Main Outlet (scrollable area) */}
-          <main className="flex-1 overflow-y-auto px-8 py-6 relative">
+          <main className="flex-1 overflow-y-auto px-4 md:px-8 py-4 md:py-6 relative">
             <Outlet context={{ searchQuery, setSearchQuery }} />
           </main>
         </div>

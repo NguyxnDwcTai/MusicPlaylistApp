@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMusicStore, TrackObject } from '../store/useMusicStore';
 import { useSpotifyPlayer } from '../hooks/useSpotifyPlayer';
 import axiosInstance from '../lib/axios';
-import { Play, Heart, Music, ListMusic, Trash2 } from 'lucide-react';
+import { Play, Heart, Music, ListMusic, ExternalLink, Share2 } from 'lucide-react';
 
 interface MongoFavorite {
   _id: string;
@@ -62,16 +62,17 @@ export default function Library() {
     fetchLibraryData();
   }, []);
 
-  // Remove Favorite Song
+  // Remove Favorite Song from user's database & state (Unlike action)
   const handleDeleteFavorite = async (e: React.MouseEvent, spotifyTrackId: string) => {
     e.stopPropagation();
+    // Optimistically remove from global store and local state to feel fast
     removeLikedTrackId(spotifyTrackId);
     setFavorites(prev => prev.filter(f => f.spotifyTrackId !== spotifyTrackId));
     try {
       await axiosInstance.post('/api/favorites/toggle', { spotifyTrackId });
     } catch (err) {
       console.error('Failed to remove favorite:', err);
-      fetchLibraryData(); // Re-fetch on fail to restore state
+      fetchLibraryData(); // Re-fetch on API failure to roll back state
     }
   };
 
@@ -159,15 +160,22 @@ export default function Library() {
                     onClick={() => handlePlayFavorite(fav)}
                     className="grid grid-cols-[auto_1fr_auto] gap-4 px-5 py-3 items-center text-[13px] hover:bg-paper-3/50 group cursor-pointer transition-colors"
                   >
-                    {/* Index / Play */}
+                    {/* Index / Play Button - Click plays track instantly */}
                     <div className="w-8 flex items-center justify-center font-mono text-[11px] text-neutral">
                       <span className="group-hover:hidden">{idx + 1}</span>
-                      <span className="hidden group-hover:block text-accent">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent duplicate play triggers from parent div
+                          handlePlayFavorite(fav);
+                        }}
+                        className="hidden group-hover:block text-accent hover:scale-110 transition-transform cursor-pointer"
+                        title="Play Track"
+                      >
                         <Play size={12} fill="currentColor" />
-                      </span>
+                      </button>
                     </div>
 
-                    {/* Meta */}
+                    {/* Track Meta (Cover Image, Name, Artist) */}
                     <div className="flex items-center gap-3 min-w-0">
                       {fav.albumCoverUrl ? (
                         <img
@@ -190,14 +198,40 @@ export default function Library() {
                       </div>
                     </div>
 
-                    {/* Delete Action */}
-                    <div className="pr-2 flex items-center">
+                    {/* Actions Panel: Unlike/Remove, Open in Spotify, Share */}
+                    <div className="flex items-center gap-2 pr-2">
+                      {/* Green Heart represents liked track, clicking it removes/unlikes it */}
                       <button
                         onClick={(e) => handleDeleteFavorite(e, fav.spotifyTrackId)}
-                        className="p-1.5 text-neutral hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-all cursor-pointer rounded-full hover:bg-rose-500/10"
+                        className="p-1.5 text-accent hover:text-neutral hover:scale-95 transition-all cursor-pointer rounded-full hover:bg-paper-3"
                         title="Remove from favorites"
                       >
-                        <Trash2 size={14} />
+                        <Heart size={14} fill="currentColor" />
+                      </button>
+                      
+                      {/* Secondary Link: Open the song in Spotify Web Player */}
+                      <a
+                        href={`https://open.spotify.com/track/${fav.spotifyTrackId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="p-1.5 text-neutral hover:text-ink transition-colors rounded-full hover:bg-paper-3"
+                        title="Open on Spotify"
+                      >
+                        <ExternalLink size={14} />
+                      </a>
+
+                      {/* Secondary Share: Copy track url to clipboard */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(`https://open.spotify.com/track/${fav.spotifyTrackId}`);
+                          alert('Link copied to clipboard!');
+                        }}
+                        className="p-1.5 text-neutral hover:text-ink transition-colors rounded-full hover:bg-paper-3 cursor-pointer"
+                        title="Copy track link"
+                      >
+                        <Share2 size={14} />
                       </button>
                     </div>
                   </div>
@@ -226,6 +260,7 @@ export default function Library() {
                 onClick={() => navigate(`/playlist/${playlist.id}`)}
                 className="bg-paper-2/20 border border-rule/50 rounded-xl p-4 flex flex-col gap-3 group transition-all duration-300 hover:shadow-lg hover:border-accent/15 cursor-pointer"
               >
+                {/* Playlists view - Displays name, cover, and total track count, clicking redirects to detail view */}
                 <div className="relative aspect-square w-full rounded-lg overflow-hidden border border-rule shadow">
                   {playlist.images && playlist.images[0] ? (
                     <img

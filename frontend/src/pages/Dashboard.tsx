@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMusicStore } from '../store/useMusicStore';
 import { useSpotifyPlayer } from '../hooks/useSpotifyPlayer';
 import axiosInstance from '../lib/axios';
@@ -13,6 +14,7 @@ interface FeaturedPlaylist {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { userProfile } = useMusicStore();
   const { playTrack } = useSpotifyPlayer();
   const [greeting, setGreeting] = useState('Welcome');
@@ -193,12 +195,14 @@ export default function Dashboard() {
       {/* Grid: Featured Categories / Playlists */}
       {featuredPlaylists.length > 0 && (
         <section className="space-y-4">
-          <h2 className="font-display font-semibold text-lg text-ink">Your Midnight Playlists</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+          <h2 className="font-display font-semibold text-lg text-ink">Your Playlists</h2>
+          {/* Scrollable Container with horizontal scroll and hidden scrollbar */}
+          <div className="flex overflow-x-auto gap-6 pb-4 scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {featuredPlaylists.map((playlist) => (
               <div
                 key={playlist.id}
-                className="bg-paper-2/20 hover:bg-paper-3/40 border border-rule/50 rounded-xl p-4 flex flex-col gap-4 cursor-pointer transition-all duration-300 hover:shadow-xl group hover:border-accent/15"
+                onClick={() => navigate(`/playlist/${playlist.id}`)}
+                className="w-44 sm:w-48 shrink-0 bg-paper-2/20 hover:bg-paper-3/40 border border-rule/50 rounded-xl p-4 flex flex-col gap-4 cursor-pointer transition-all duration-300 hover:shadow-xl group hover:border-accent/15"
               >
                 <div className="relative aspect-square w-full">
                   {playlist.image ? (

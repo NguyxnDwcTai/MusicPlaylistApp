@@ -1,0 +1,13 @@
+{
+  "users": [
+    {
+      "_id": "a1893e9fadd78a039735be96",
+      "spotifyId": "31ir3z6cza4g22rjaoyoyhultaoe",
+      "displayName": "Yves Saint Laurent",
+      "email": "diandtee@gmail.com",
+      "profileImage": "https://i.scdn.co/image/ab6775700000ee858a2bb0e50b3564b2c20e8694",
+      "createdAt": "2026-06-06T13:43:05.585Z"
+    }
+  ],
+  "favorites": []
+}

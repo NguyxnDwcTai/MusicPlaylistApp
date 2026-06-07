@@ -4,8 +4,11 @@ import LandingPage from './pages/LandingPage.tsx';
 import MainLayout from './layouts/MainLayout.tsx';
 import Dashboard from './pages/Dashboard.tsx';
 import Search from './pages/Search.tsx';
+import SearchSongs from './pages/SearchSongs.tsx';
 import Library from './pages/Library.tsx';
 import PlaylistDetail from './pages/PlaylistDetail.tsx';
+import ArtistDetail from './pages/ArtistDetail.tsx';
+import AlbumDetail from './pages/AlbumDetail.tsx';
 import { useMusicStore } from './store/useMusicStore';
 import axiosInstance from './lib/axios';
 import { SpotifyPlayerProvider } from './hooks/useSpotifyPlayer';
@@ -46,7 +49,7 @@ function AppRoutes() {
 
   if (loading) {
     return (
-      <div className="h-screen w-screen bg-paper flex flex-col items-center justify-center text-[13px] text-neutral font-mono select-none">
+      <div className="h-[100dvh] w-full bg-paper flex flex-col items-center justify-center text-[13px] text-neutral font-mono select-none">
         <div className="w-8 h-8 rounded-full border-2 border-accent border-t-transparent animate-spin mb-4" />
         <span>Loading Nocturne...</span>
       </div>
@@ -59,8 +62,11 @@ function AppRoutes() {
       <Route path="/" element={<MainLayout />}>
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="search" element={<Search />} />
+        <Route path="search/songs" element={<SearchSongs />} />
         <Route path="library" element={<Library />} />
         <Route path="playlist/:id" element={<PlaylistDetail />} />
+        <Route path="artist/:id" element={<ArtistDetail />} />
+        <Route path="album/:id" element={<AlbumDetail />} />
       </Route>
       <Route path="*" element={<LandingPage />} />
     </Routes>

@@ -156,9 +156,9 @@ export default function BottomPlayer() {
   }
 
   return (
-    <div className="h-20 bg-paper-2 border-t border-rule px-8 flex items-center justify-between select-none relative z-20">
+    <div className="h-16 md:h-20 bg-paper-2 border-t border-rule px-4 md:px-8 flex items-center justify-between select-none relative z-20">
       {/* LEFT: Track Details */}
-      <div className="flex items-center gap-4 w-1/4 min-w-[180px]">
+      <div className="flex items-center gap-3 md:gap-4 w-auto md:w-1/4 min-w-[120px] md:min-w-[180px] max-w-[45%] md:max-w-none">
         {currentTrack.album.images[0]?.url ? (
           <img 
             src={currentTrack.album.images[0].url} 
@@ -187,7 +187,7 @@ export default function BottomPlayer() {
       </div>
 
       {/* CENTER: Playback Controls */}
-      <div className="flex flex-col items-center gap-1.5 w-2/5 max-w-[600px]">
+      <div className="flex flex-col items-center justify-center gap-1.5 flex-1 md:w-2/5 max-w-[600px] px-2 md:px-4">
         {/* Buttons */}
         <div className="flex items-center gap-5">
           <button 
@@ -242,7 +242,7 @@ export default function BottomPlayer() {
         </div>
 
         {/* Progress Bar */}
-        <div className="w-full flex items-center gap-2.5 text-[10.5px] font-mono text-neutral">
+        <div className="w-full flex items-center gap-2 md:gap-2.5 text-[9.5px] md:text-[10.5px] font-mono text-neutral">
           <span>{formatTime(displayedProgress)}</span>
           <input 
             type="range" 
@@ -261,7 +261,7 @@ export default function BottomPlayer() {
       </div>
 
       {/* RIGHT: Volume & Info */}
-      <div className="flex items-center justify-end gap-3 w-1/4 min-w-[150px]">
+      <div className="hidden md:flex items-center justify-end gap-3 w-1/4 min-w-[150px]">
         <button className="text-neutral hover:text-ink transition-colors cursor-pointer">
           <ListMusic size={16} />
         </button>
